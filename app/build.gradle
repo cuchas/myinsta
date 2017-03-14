@@ -27,10 +27,12 @@ dependencies {
 
     compile "com.android.support:appcompat-v7:$rootProject.ext.supportLibrary"
     compile "com.android.support:design:$rootProject.ext.supportLibrary"
-
-    compile 'com.android.support.constraint:constraint-layout:1.0.2'
-    compile 'com.jakewharton:butterknife:8.5.1'
     compile 'com.android.support:support-v4:25.2.0'
+    compile 'com.android.support.constraint:constraint-layout:1.0.2'
+
+    compile 'com.jakewharton:butterknife:8.5.1'
+    compile 'com.squareup.picasso:picasso:2.5.2'
+
     testCompile 'org.mockito:mockito-core:+'
     testCompile 'junit:junit:4.12'
     androidTestCompile 'org.mockito:mockito-android:+'

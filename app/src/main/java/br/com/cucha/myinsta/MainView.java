@@ -15,13 +15,27 @@ interface MainView {
 
     void showPermissionDialog();
 
+    File getEnvFilePath();
+
+    boolean isStorageMounted();
+
     void startCamera(File file);
 
     void onActivityResult(Uri uri);
 
-    void destroy();
-
     boolean shouldShowDialog();
 
     void showUnlockPermissionsDialog();
+
+    String[] getPermissions();
+
+    void showDisconnectFromPCDialog();
+
+    void showNoSpaceDialog();
+
+    int availableDisk();
+
+    File newFile();
+
+    void showErrorDialog();
 }

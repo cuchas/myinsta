@@ -2,22 +2,32 @@ package br.com.cucha.myinsta;
 
 
 import android.Manifest;
+import android.app.Activity;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.Image;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
-import android.support.v4.app.ActivityOptionsCompat;
 import android.support.v4.app.Fragment;
+import android.support.v4.content.FileProvider;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
+
+import com.squareup.picasso.Picasso;
 
 import java.io.File;
+import java.io.IOException;
+import java.util.Calendar;
 
-import br.com.cucha.myinsta.image.ImageInteractor;
 import br.com.cucha.myinsta.image.ImageInteractorImpl;
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -30,9 +40,10 @@ import butterknife.Unbinder;
  */
 public class PhotoListFragment extends Fragment implements MainView {
 
-    final static String[] permissions = new String[] {
-            Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE };
+    static String[] permissions = new String[] {
+        Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE };;
 
+    private static final int REQUEST_CODE_CAMERA = 1002;
     private static final int REQUEST_CODE_PERMISSIONS = 1001;
 
     @BindView(R.id.recycler)
@@ -41,6 +52,12 @@ public class PhotoListFragment extends Fragment implements MainView {
     public static final String TAG = PhotoListFragment.class.getName();
     private Unbinder unbinder;
     private MainPresenter presenter;
+    private AlertDialog unlockDialog;
+    private Uri uri;
+    private ImageView image;
+    private AlertDialog disconnectDialog;
+    private AlertDialog noSpaceDialog;
+    private AlertDialog errorDialog;
 
     public PhotoListFragment() {
         // Required empty public constructor
@@ -67,6 +84,8 @@ public class PhotoListFragment extends Fragment implements MainView {
                              Bundle savedInstanceState) {
         // Inflate the layout for this fragment
         View view = inflater.inflate(R.layout.fragment_photo_list, container, false);
+
+        image = (ImageView) view.findViewById(R.id.image);
 
         unbinder = ButterKnife.bind(this, view);
 
@@ -98,15 +117,13 @@ public class PhotoListFragment extends Fragment implements MainView {
 
     @Override
     public boolean checkPermission() {
-        String cameraPermission = Manifest.permission.CAMERA;
-        String writePermission = Manifest.permission.WRITE_EXTERNAL_STORAGE;
+        for (String p : permissions) {
+            int result = ActivityCompat.checkSelfPermission(getContext(), p);
 
-        int cameraCheck = ActivityCompat.checkSelfPermission(getContext(), cameraPermission);
-        int writeCheck = ActivityCompat.checkSelfPermission(getContext(), writePermission);
+            if(result == PackageManager.PERMISSION_DENIED) return false;
+        }
 
-        return cameraCheck == PackageManager.PERMISSION_GRANTED &&
-                writeCheck == PackageManager.PERMISSION_GRANTED;
-
+        return true;
     }
 
     @Override
@@ -126,18 +143,45 @@ public class PhotoListFragment extends Fragment implements MainView {
                 return false;
         }
 
-
         return true;
     }
 
     @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if(requestCode == REQUEST_CODE_CAMERA && resultCode == Activity.RESULT_OK) {
+            Picasso.with(getContext()).load(uri).into(image);
+            presenter.saveImage(uri);
+        }
+    }
+
+    @Override
     public void showPermissionDialog() {
-        ActivityCompat.requestPermissions(getActivity(), permissions, REQUEST_CODE_PERMISSIONS);
+        requestPermissions(permissions, REQUEST_CODE_PERMISSIONS);
+    }
+
+    @Override
+    public File getEnvFilePath() {
+        File file = getContext().getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        return file;
+    }
+
+    @Override
+    public boolean isStorageMounted() {
+        String externalStorageState = Environment.getExternalStorageState();
+
+        return externalStorageState.equals(Environment.MEDIA_MOUNTED);
     }
 
     @Override
     public void startCamera(File file) {
 
+        uri = FileProvider.getUriForFile(getContext(), GENERAL.FILE_AUTHORITY, file);
+        Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        intent.putExtra(MediaStore.EXTRA_OUTPUT, uri);
+
+        startActivityForResult(intent, REQUEST_CODE_CAMERA);
     }
 
     @Override
@@ -146,17 +190,99 @@ public class PhotoListFragment extends Fragment implements MainView {
     }
 
     @Override
-    public void destroy() {
-
-    }
-
-    @Override
     public boolean shouldShowDialog() {
-        return false;
+
+        for(String p : permissions) {
+            boolean b = ActivityCompat.shouldShowRequestPermissionRationale(getActivity(), p);
+
+            if(!b) return false;
+        }
+
+        return true;
     }
 
     @Override
     public void showUnlockPermissionsDialog() {
+        if(unlockDialog == null) {
+            unlockDialog = new AlertDialog.Builder(getContext())
+                    .setTitle(getString(R.string.without_permissions))
+                    .setMessage(getString(R.string.it_looks_you_locked_permissions_))
+                    .create();
+        }
 
+        unlockDialog.show();
+    }
+
+    @Override
+    public String[] getPermissions() {
+        return permissions;
+    }
+
+    @Override
+    public void showDisconnectFromPCDialog() {
+
+        if(disconnectDialog == null) {
+            disconnectDialog = new AlertDialog.Builder(getContext())
+                    .setTitle(getString(R.string.media_unavailable))
+                    .setMessage(getString(R.string.external_storage_unavailable_pls_))
+                    .create();
+        }
+
+        disconnectDialog.show();
+    }
+
+    @Override
+    public void showNoSpaceDialog() {
+        if(noSpaceDialog == null) {
+            noSpaceDialog = new AlertDialog.Builder(getContext())
+                    .setTitle(getString(R.string.no_few_space_on_disk))
+                    .setMessage(getString(R.string.your_have_no_space_available_pls_))
+                    .create();
+        }
+
+        noSpaceDialog.show();
+
+    }
+
+    @Override
+    public int availableDisk() {
+        File envFilePath = getEnvFilePath();
+        long freeSpace = envFilePath.getFreeSpace();
+        int mb = Math.round(freeSpace / 1048576);
+        return mb;
+    }
+
+    @Override
+    public File newFile() {
+        Calendar cal = Calendar.getInstance();
+        long timeInMillis = cal.getTimeInMillis();
+
+        String filename = String.valueOf(timeInMillis) + ".jpeg";
+
+        File envFilePath = getEnvFilePath();
+
+        try {
+            File newFile = new File(envFilePath.getAbsolutePath(), filename);
+            newFile.createNewFile();
+
+            return newFile;
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+
+    @Override
+    public void showErrorDialog() {
+        if(errorDialog == null) {
+            errorDialog = new AlertDialog.Builder(getContext())
+                    .setTitle(getString(R.string.file_system_error))
+                    .setMessage(getString(R.string.something_went_wrong_during_file_))
+                    .create();
+        }
+
+        errorDialog.show();
     }
 }

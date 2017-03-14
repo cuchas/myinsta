@@ -2,6 +2,8 @@ package br.com.cucha.myinsta;
 
 import android.net.Uri;
 
+import java.io.File;
+
 /**
  * Created by eduardocucharro on 13/03/17.
  */

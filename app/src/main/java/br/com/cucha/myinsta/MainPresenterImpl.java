@@ -1,8 +1,11 @@
 package br.com.cucha.myinsta;
 
+import android.content.Context;
 import android.net.Uri;
 
 import java.io.File;
+import java.io.IOException;
+import java.util.Calendar;
 
 import br.com.cucha.myinsta.image.ImageInteractor;
 import br.com.cucha.myinsta.image.ImageService;
@@ -30,12 +33,30 @@ class MainPresenterImpl implements MainPresenter {
     @Override
     public void cameraClick() {
         // TODO: 13/03/17
-        if(view.checkPermission()) {
-            view.startCamera(new File(""));
+
+        if(!view.checkPermission()) {
+            view.showPermissionDialog();
             return;
         }
 
-        view.showPermissionDialog();
+        if(!view.isStorageMounted()) {
+            view.showDisconnectFromPCDialog();
+            return;
+        }
+
+        if(view.availableDisk() <= 5) {
+            view.showNoSpaceDialog();
+            return;
+        }
+
+        File file = view.newFile();
+
+        if(file == null) {
+            view.showErrorDialog();
+            return;
+        }
+
+        view.startCamera(file);
     }
 
     @Override
@@ -48,4 +69,6 @@ class MainPresenterImpl implements MainPresenter {
         if(view.shouldShowDialog()) view.showPermissionDialog();
         else view.showUnlockPermissionsDialog();
     }
+
+
 }

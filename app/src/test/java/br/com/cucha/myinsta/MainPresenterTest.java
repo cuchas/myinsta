@@ -1,5 +1,6 @@
 package br.com.cucha.myinsta;
 
+import android.Manifest;
 import android.net.Uri;
 
 import org.junit.Before;
@@ -12,13 +13,16 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import br.com.cucha.myinsta.image.ImageInteractor;
 import br.com.cucha.myinsta.image.ImageService;
 import br.com.cucha.myinsta.image.Photo;
 
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.nullable;
@@ -34,12 +38,19 @@ import static org.mockito.Mockito.when;
 
 public class MainPresenterTest {
 
+    @Mock
+    ImageInteractor interactor;
+
+    @Mock
+    MainView view;
+
+    @Before
+    public void init() {
+        MockitoAnnotations.initMocks(this);
+    }
+
     @Test
     public void cameraClick_checksPermission() {
-
-        ImageInteractor interactor = mock(ImageInteractor.class);
-
-        MainView view = mock(MainView.class);
 
         MainPresenter presenter = new MainPresenterImpl(view, interactor);
         presenter.cameraClick();
@@ -50,9 +61,6 @@ public class MainPresenterTest {
     @Test
     public void cameraClick_showPermissionDialog() {
 
-        ImageInteractor interactor = mock(ImageInteractor.class);
-
-        MainView view = mock(MainView.class);
         when(view.checkPermission()).thenReturn(false);
 
         MainPresenter presenter = new MainPresenterImpl(view, interactor);
@@ -63,10 +71,10 @@ public class MainPresenterTest {
 
     @Test
     public void cameraClick_startCamera() {
-        ImageInteractor interactor = mock(ImageInteractor.class);
-
-        MainView view = mock(MainView.class);
         when(view.checkPermission()).thenReturn(true);
+        when(view.isStorageMounted()).thenReturn(true);
+        when(view.availableDisk()).thenReturn(6);
+        when(view.newFile()).thenReturn(mock(File.class));
 
         MainPresenter presenter = new MainPresenterImpl(view, interactor);
         presenter.cameraClick();
@@ -78,8 +86,6 @@ public class MainPresenterTest {
 
     @Test
     public void init_showEmptyList() {
-
-        ImageInteractor interactor = mock(ImageInteractor.class);
 
         when(interactor.listAll()).then(new Answer<Object>() {
             @Override
@@ -93,8 +99,6 @@ public class MainPresenterTest {
             }
         });
 
-        MainView view = mock(MainView.class);
-
         MainPresenter presenter = new MainPresenterImpl(view, interactor);
 
         presenter.init();
@@ -104,8 +108,6 @@ public class MainPresenterTest {
 
     @Test
     public void permissionDenied_showNeedPermissionsDialog_whenShouldRationale() {
-        ImageInteractor interactor = mock(ImageInteractor.class);
-        MainView view = mock(MainView.class);
         when(view.shouldShowDialog()).thenReturn(true);
         MainPresenter presenter = new MainPresenterImpl(view, interactor);
 
@@ -116,8 +118,6 @@ public class MainPresenterTest {
 
     @Test
     public void permissionDenied_notshowNeedPermissionsDialog_whenNotShouldRationale() {
-        ImageInteractor interactor = mock(ImageInteractor.class);
-        MainView view = mock(MainView.class);
         when(view.shouldShowDialog()).thenReturn(false);
         MainPresenter presenter = new MainPresenterImpl(view, interactor);
 
@@ -128,13 +128,65 @@ public class MainPresenterTest {
 
     @Test
     public void permissionDenied_showUnlockPermissionsDialog_whenNotShouldRationale() {
-        ImageInteractor interactor = mock(ImageInteractor.class);
-        MainView view = mock(MainView.class);
         when(view.shouldShowDialog()).thenReturn(false);
         MainPresenter presenter = new MainPresenterImpl(view, interactor);
 
         presenter.permissionDenied();
 
         verify(view).showUnlockPermissionsDialog();
+    }
+
+
+
+    @Test
+    public void cameraClick_showDisconnectFromPcDialog_whenMediaNotMounted() {
+        when(view.checkPermission()).thenReturn(true);
+        when(view.isStorageMounted()).thenReturn(false);
+
+        MainPresenter presenter = new MainPresenterImpl(view, interactor);
+
+        presenter.cameraClick();
+
+        verify(view).showDisconnectFromPCDialog();
+    }
+
+    @Test
+    public void cameraClick_notStartCamera_whenMediaNotMounted() {
+        when(view.isStorageMounted()).thenReturn(false);
+
+        MainPresenter presenter = new MainPresenterImpl(view, interactor);
+
+        presenter.cameraClick();
+
+        ArgumentCaptor<File> fileArgumentCaptor = ArgumentCaptor.forClass(File.class);
+
+        verify(view, never()).startCamera(fileArgumentCaptor.capture());
+    }
+
+
+    @Test
+    public void cameraClick_showNoSpaceAvailableDialog_fiveMBOrLess() {
+        when(view.availableDisk()).thenReturn(5);
+        when(view.checkPermission()).thenReturn(true);
+        when(view.isStorageMounted()).thenReturn(true);
+
+        MainPresenter presenter = new MainPresenterImpl(view, interactor);
+
+        presenter.cameraClick();
+
+        verify(view).showNoSpaceDialog();
+    }
+
+    @Test
+    public void cameraClick_showErrorDialog_whenFileException() {
+        when(view.checkPermission()).thenReturn(true);
+        when(view.availableDisk()).thenReturn(6);
+        when(view.isStorageMounted()).thenReturn(true);
+        when(view.newFile()).thenReturn(null);
+
+        MainPresenter presenter = new MainPresenterImpl(view, interactor);
+        presenter.cameraClick();
+
+        verify(view).showErrorDialog();
     }
 }
